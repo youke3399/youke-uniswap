@@ -69,6 +69,9 @@ export function useSwapPrice({
             amount,
             tradeType,
             recipient,
+            protocols:import.meta.env.VITE_PROTOCOLS ?? null,
+            minSplits:import.meta.env.VITE_MINSPLITS ?? null,
+            slippage:import.meta.env.VITE_SLIPPAGE ?? 50,
           }),
         });
 
