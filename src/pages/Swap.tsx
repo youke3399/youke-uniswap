@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useDebounce } from "use-debounce";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, usePublicClient } from "wagmi";
 import { useSwapStore } from "@/stores/swapStore";
@@ -27,7 +28,7 @@ export default function SwapPage() {
 
     fetchGas(); // 初始获取一次
 
-    const interval = setInterval(fetchGas, 10000); // 每 10 秒轮询一次
+    const interval = setInterval(fetchGas, 30000); // 每 30 秒轮询一次
 
     return () => clearInterval(interval); // 组件卸载时清除定时器
   }, [publicClient]);
@@ -38,14 +39,12 @@ export default function SwapPage() {
     toToken,
     fromAmount,
     toAmount,
-    amount,
     tradeType,
     availableTokens,
     setFromToken,
     setToToken,
     setFromAmount,
     setToAmount,
-    setAmount,
     setTradeType,
 
     approveStatus,
@@ -57,11 +56,16 @@ export default function SwapPage() {
     setSwapError,
   } = state;
 
-  // 防抖定时器引用
-  const inputDebounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const outputDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+  // Permit2 hooks
+  const { approveTokenForPermit2 } = usePermit2();
 
-  // 计算价格
+  // 使用 useDebounce 替代手动防抖逻辑
+  const [debouncedAmount] = useDebounce(
+    tradeType === TradeType.EXACT_INPUT ? fromAmount : toAmount,
+    800
+  );
+
+  // 计算价格，传入 debouncedAmount
   const {
     price,
     route,
@@ -73,7 +77,7 @@ export default function SwapPage() {
   } = useSwapPrice({
     tokenIn: fromToken,
     tokenOut: toToken,
-    amount,
+    amount: debouncedAmount,
     tradeType,
     recipient: address || "",
   });
@@ -116,26 +120,133 @@ export default function SwapPage() {
     },
   });
 
-  // Permit2 hooks
-  const { approveTokenForPermit2 } = usePermit2();
+  // Swap 辅助函数
+  function resetAfterSuccess() {
+    setFromAmount("");
+    setToAmount("");
+    setApproveStatus("idle");
+    setSwapStatus("idle");
+    setSwapError(null);
+  }
+
+  async function handleNativeSwap() {
+    setSwapStatus("pending");
+    try {
+      await executeSwap();
+      setSwapStatus("idle");
+    } catch (err) {
+      console.error("ETH Swap Error", err);
+      setSwapError("ETH 交换失败，请重试");
+      setSwapStatus("idle");
+    }
+  }
+
+  async function handleTokenSwap(
+    token: Token & { address: `0x${string}` },
+    amountRaw: bigint
+  ) {
+    // 非 ETH 情况：先审查（approve）或交换
+    if (approveStatus === "idle") {
+      setApproveStatus("pending");
+      try {
+        await approveTokenForPermit2({
+          token,
+          account: address as `0x${string}`,
+          amount: amountRaw,
+        });
+        setApproveStatus("done");
+      } catch (err) {
+        console.error("Approve Error", err);
+        setSwapError("授权失败，请重试");
+        setApproveStatus("idle");
+      }
+      return;
+    }
+    // 审查完成后：执行 permit 签名和交易
+    if (approveStatus === "done") {
+      setSwapStatus("pending");
+      try {
+        await executeSwap();
+        resetAfterSuccess();
+      } catch (err) {
+        console.error("交易失败", err);
+        setSwapError("交易失败，请重试");
+        setApproveStatus("idle");
+        setSwapStatus("idle");
+      }
+    }
+  }
+
+  async function handleSwapClick() {
+    setSwapError(null);
+    if (!isConnected || !fromToken || !address) return;
+    const isNative = "isNative" in fromToken && fromToken.isNative;
+    const amountRaw = parseUnits(fromAmount || "0", fromToken?.decimals ?? 18);
+    const token = !isNative
+      ? (fromToken as Token & { address: `0x${string}` })
+      : null;
+
+    if (isNative) {
+      if (approveStatus !== "done") {
+        setApproveStatus("done");
+        return;
+      }
+      await handleNativeSwap();
+      return;
+    }
+    if (token) {
+      await handleTokenSwap(token, amountRaw);
+    }
+  }
+
+  const isSwapButtonDisabled =
+    priceLoading ||
+    approveStatus === "pending" ||
+    swapStatus === "pending" ||
+    !fromToken ||
+    !toToken ||
+    (fromToken && toToken && fromToken.symbol === toToken.symbol) ||
+    !fromAmount ||
+    Number(fromAmount) <= 0;
+
+  let swapButtonText = "";
+  if (priceLoading) {
+    swapButtonText = "获取价格中...";
+  } else if (!isConnected) {
+    swapButtonText = "连接钱包";
+  } else if (!fromToken || !toToken) {
+    swapButtonText = fromToken && toToken ? "加载中..." : "请选择代币";
+  } else if (!fromAmount || Number(fromAmount) <= 0) {
+    swapButtonText = "请输入数量";
+  } else if (approveStatus === "pending") {
+    swapButtonText = "授权中...";
+  } else if (approveStatus === "done" && swapStatus === "idle") {
+    swapButtonText = "交换";
+  } else if (approveStatus === "idle") {
+    swapButtonText = "批准";
+  } else if (swapStatus === "pending") {
+    swapButtonText = "交换中...";
+  } else {
+    swapButtonText = "交换";
+  }
 
   return (
-    <main className="relative flex flex-col items-center justify-center min-h-screen bg-white p-6">
+    <main className="relative flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
       {/* Wallet connect button top-right */}
       <div className="absolute top-4 right-4">
         <ConnectButton />
       </div>
 
-      <h1 className="text-3xl font-bold mb-6 text-black">交易</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800 w-full text-center">交易</h1>
 
-      <div className="w-full max-w-md bg-gray-100 rounded-lg shadow-lg p-6 space-y-6">
-        <div className="flex flex-col gap-y-3 text-black">
+      <div className="w-full sm:w-[480px] bg-white rounded-lg shadow-lg p-6 space-y-6">
+        <div className="flex flex-col gap-y-3 text-gray-800">
           {/* Sell Token */}
           <div>
-            <label className="block text-sm font-medium text-gray-600">
+            <label className="block text-sm font-medium text-gray-500">
               出售代币
             </label>
-            <div className="flex items-center border border-gray-300 rounded-md p-2 space-x-2 bg-white">
+            <div className="flex items-center border border-gray-300 rounded-lg p-2 space-x-2 bg-white">
               <input
                 type="number"
                 value={fromAmount}
@@ -144,14 +255,9 @@ export default function SwapPage() {
                   const val = e.target.value;
                   setTradeType(TradeType.EXACT_INPUT); // 用户设置出售数量
                   setFromAmount(val);
-                  if (inputDebounceTimer.current)
-                    clearTimeout(inputDebounceTimer.current);
-                  inputDebounceTimer.current = setTimeout(() => {
-                    setAmount(val);
-                  }, 800);
                 }}
                 placeholder="输入数量"
-                className="flex-1 bg-transparent outline-none placeholder-gray-600 text-sm text-black focus:ring-2 focus:ring-yellow-400 rounded-md p-1"
+                className="flex-1 bg-white rounded-lg outline-none placeholder-gray-600 text-sm text-gray-800 focus:ring-2 focus:ring-yellow-500 p-2"
               />
               <select
                 value={fromToken ? fromToken.symbol : ""}
@@ -161,7 +267,7 @@ export default function SwapPage() {
                   );
                   if (selected) setFromToken(selected);
                 }}
-                className="bg-transparent outline-none text-sm text-black rounded-md p-1"
+                className="bg-white rounded-lg outline-none text-sm text-gray-800 p-2"
               >
                 {availableTokens.map((token) => (
                   <option key={token.symbol} value={token.symbol}>
@@ -170,7 +276,7 @@ export default function SwapPage() {
                 ))}
               </select>
             </div>
-            <div className="text-xs text-gray-600 text-right mt-1">
+            <div className="text-xs text-gray-500 text-right mt-1">
               余额:
               {isFetchingFromBalance
                 ? "加载中..."
@@ -185,10 +291,10 @@ export default function SwapPage() {
 
           {/* Buy Token */}
           <div>
-            <label className="block text-sm font-medium text-gray-600">
+            <label className="block text-sm font-medium text-gray-500">
               购买代币
             </label>
-            <div className="flex items-center border border-gray-300 rounded-md p-2 space-x-2 bg-white">
+            <div className="flex items-center border border-gray-300 rounded-lg p-2 space-x-2 bg-white">
               <input
                 type="number"
                 value={toAmount}
@@ -197,14 +303,9 @@ export default function SwapPage() {
                   const val = e.target.value;
                   setTradeType(TradeType.EXACT_OUTPUT); // 用户设置购买数量
                   setToAmount(val);
-                  if (outputDebounceTimer.current)
-                    clearTimeout(outputDebounceTimer.current);
-                  outputDebounceTimer.current = setTimeout(() => {
-                    setAmount(val);
-                  }, 800);
                 }}
                 placeholder="得到数量"
-                className="flex-1 bg-transparent outline-none placeholder-gray-600 text-sm text-black focus:ring-2 focus:ring-yellow-400 rounded-md p-1"
+                className="flex-1 bg-white rounded-lg outline-none placeholder-gray-600 text-sm text-gray-800 focus:ring-2 focus:ring-yellow-500 p-2"
               />
               <select
                 value={toToken ? toToken.symbol : ""}
@@ -214,7 +315,7 @@ export default function SwapPage() {
                   );
                   if (selected) setToToken(selected);
                 }}
-                className="bg-transparent outline-none text-sm text-black rounded-md p-1"
+                className="bg-white rounded-lg outline-none text-sm text-gray-800 p-2"
               >
                 {availableTokens
                   .filter((token) => token.symbol !== fromToken?.symbol)
@@ -225,7 +326,7 @@ export default function SwapPage() {
                   ))}
               </select>
             </div>
-            <div className="text-xs text-gray-600 text-right mt-1">
+            <div className="text-xs text-gray-500 text-right mt-1">
               余额:
               {isFetchingToBalance
                 ? "加载中..."
@@ -242,104 +343,16 @@ export default function SwapPage() {
         <div className="flex flex-col gap-y-3">
           {/* Swap Button */}
           <button
-            className={`w-full bg-yellow-500 hover:bg-yellow-600 text-white disabled:bg-gray-400 disabled:cursor-not-allowed`}
-            disabled={
-              priceLoading ||
-              approveStatus === "pending" ||
-              swapStatus === "pending" ||
-              !fromToken ||
-              !toToken ||
-              (fromToken && toToken && fromToken.symbol === toToken.symbol) ||
-              !fromAmount ||
-              Number(fromAmount) <= 0
-            }
-            onClick={async () => {
-              setSwapError(null);
-              if (!isConnected || !fromToken || !address) return;
-
-              const isNative = "isNative" in fromToken && fromToken.isNative;
-              const amountRaw = parseUnits(
-                fromAmount || "0",
-                fromToken?.decimals ?? 18
-              );
-              const token = !isNative
-                ? (fromToken as Token & { address: `0x${string}` })
-                : null;
-
-              // ETH 情况：直接交换
-              if (isNative) {
-                setSwapStatus("pending");
-                try {
-                  await executeSwap();
-                  setSwapStatus("done");
-                } catch (err) {
-                  console.error("ETH Swap Error", err);
-                  setSwapError("ETH 交换失败，请重试");
-                  setSwapStatus("idle");
-                }
-                return;
-              }
-
-              // 非 ETH 情况：先审查（approve）
-              if (!isNative && approveStatus === "idle") {
-                setApproveStatus("pending");
-                try {
-                  // 这里调用 approveTokenForPermit2 进行授权
-                  await approveTokenForPermit2({
-                    token: token!,
-                    account: address as `0x${string}`,
-                    amount: amountRaw,
-                  });
-                  setApproveStatus("done");
-                } catch (err) {
-                  console.error("Approve Error", err);
-                  setSwapError("授权失败，请重试");
-                  setApproveStatus("idle");
-                }
-                return;
-              }
-
-              // 审查完成后：执行 permit 签名和交易
-              if (approveStatus === "done") {
-                setSwapStatus("pending");
-                try {
-                  await executeSwap();
-
-                  setSwapStatus("done");
-                } catch (err) {
-                  console.error("签名或交易失败", err);
-                  setSwapError("签名或交易失败，请重试");
-                  setSwapStatus("idle");
-                }
-              }
-            }}
+            className={`w-full bg-yellow-500 hover:bg-yellow-600 text-white disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg py-2`}
+            disabled={isSwapButtonDisabled}
+            onClick={handleSwapClick}
           >
-            {priceLoading
-              ? "获取价格中..."
-              : !isConnected
-              ? "连接钱包"
-              : !fromToken || !toToken
-              ? fromToken && toToken
-                ? "加载中..."
-                : "请选择代币"
-              : fromToken && toToken && fromToken.symbol === toToken.symbol
-              ? "请选择不同的代币"
-              : !fromAmount || Number(fromAmount) <= 0
-              ? "请输入数量"
-              : approveStatus === "pending"
-              ? "授权中..."
-              : approveStatus === "done" && swapStatus === "idle"
-              ? "交换"
-              : approveStatus === "idle"
-              ? "审查"
-              : swapStatus === "pending"
-              ? "交换中..."
-              : "批准并交换"}
+            {swapButtonText}
           </button>
         </div>
 
         {/* Info Rows */}
-        <div className="space-y-2 text-sm font-medium text-gray-600">
+        <div className="space-y-2 text-sm font-medium text-gray-600 border-t border-gray-300 pt-4">
           <div className="flex justify-between">
             <span>当前Gas:</span>
             <span>
@@ -361,7 +374,7 @@ export default function SwapPage() {
         </div>
 
         {route && route.length > 0 && (
-          <div className="text-sm font-medium text-gray-600">
+          <div className="text-sm font-medium text-gray-600 border-t border-gray-300 pt-4">
             <div>订单路由：</div>
             <ul className="mt-1 space-y-2">
               {(
@@ -388,7 +401,7 @@ export default function SwapPage() {
         )}
 
         {(priceError || swapError) && (
-          <div className="text-red-600 text-sm font-medium text-center mt-4">
+          <div className="text-red-600 text-sm font-medium text-center mt-4 bg-red-100 rounded-md p-2">
             {priceError || swapError}
           </div>
         )}

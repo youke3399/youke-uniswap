@@ -11,7 +11,6 @@ interface SwapState {
   toToken: Token | NativeCurrency | null;
   fromAmount: string;
   toAmount: string;
-  amount: string;
   tradeType: TradeType;
   approveStatus: "idle" | "pending" | "done";
   swapStatus: "idle" | "pending" | "done";
@@ -22,7 +21,6 @@ interface SwapState {
   setToToken: (token: Token | NativeCurrency) => void;
   setFromAmount: (fromAmount: string) => void;
   setToAmount: (toAmount: string) => void;
-  setAmount: (amount: string) => void;
   setTradeType: (tradeType: TradeType) => void;
   setApproveStatus: (status: "idle" | "pending" | "done") => void;
   setSwapStatus: (status: "idle" | "pending" | "done") => void;
@@ -42,7 +40,6 @@ export const useSwapStore = create<SwapState>((set) => {
     toBalance: BigInt(0),
     fromAmount: "",
     toAmount: "",
-    amount: "",
     tradeType: TradeType.EXACT_INPUT,
     approveStatus: "idle",
     swapStatus: "idle",
@@ -102,7 +99,6 @@ export const useSwapStore = create<SwapState>((set) => {
       set({ fromAmount });
     },
     setToAmount: (toAmount) => set({ toAmount }),
-    setAmount: (amount) => set({ amount }),
     setTradeType: (tradeType) => set({ tradeType }),
     setApproveStatus: (status) => set({ approveStatus: status }),
     setSwapStatus: (status) => set({ swapStatus: status }),
