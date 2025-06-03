@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useDebounce } from "use-debounce";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, usePublicClient } from "wagmi";
+import { useAccount, useBalance, usePublicClient,useChainId } from "wagmi";
 import { useSwapStore } from "@/stores/swapStore";
 import { usePermit2 } from "@/hooks/usePermit2";
 import { useSwapPrice } from "@/hooks/useSwapPrice";
@@ -10,9 +10,33 @@ import { formatBalance } from "@/libs/conversion";
 import { formatUnits, parseUnits } from "viem";
 
 export default function SwapPage() {
+  const chainId = useChainId();
+  const state = useSwapStore();
+  const {
+    fromToken,
+    toToken,
+    fromAmount,
+    toAmount,
+    tradeType,
+    availableTokens,
+    setChainId,
+    setFromToken,
+    setToToken,
+    setFromAmount,
+    setToAmount,
+    setTradeType,
+    approveStatus,
+    swapStatus,
+    setApproveStatus,
+    setSwapStatus,
+    swapError,
+    setSwapError,
+  } = state;
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const [currentGasGwei, setCurrentGasGwei] = useState<string | null>(null);
+  // 用于持久存储 chainId 是否刚刚变更，避免异步副作用提前触发
+  const hasChainJustChangedRef = useRef(false);
 
   useEffect(() => {
     if (!publicClient) return;
@@ -33,28 +57,23 @@ export default function SwapPage() {
     return () => clearInterval(interval); // 组件卸载时清除定时器
   }, [publicClient]);
 
-  const state = useSwapStore();
-  const {
-    fromToken,
-    toToken,
-    fromAmount,
-    toAmount,
-    tradeType,
-    availableTokens,
-    setFromToken,
-    setToToken,
-    setFromAmount,
-    setToAmount,
-    setTradeType,
-
-    approveStatus,
-    swapStatus,
-    setApproveStatus,
-    setSwapStatus,
-
-    swapError,
-    setSwapError,
-  } = state;
+  // 监听 chainId 变化，自动更新 swapStore 的 chainId，并重置输入和状态
+  useEffect(() => {
+    if (chainId) {
+      setChainId(chainId);
+      setFromAmount("");
+      setToAmount("");
+      setTradeType(TradeType.EXACT_INPUT);
+      setApproveStatus("idle");
+      setSwapStatus("idle");
+      setSwapError(null);
+      hasChainJustChangedRef.current = true;
+      const timer = setTimeout(() => {
+        hasChainJustChangedRef.current = false;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [chainId, setChainId, setFromAmount, setToAmount, setTradeType, setApproveStatus, setSwapStatus, setSwapError]);
 
   // Permit2 hooks
   const { approveTokenForPermit2 } = usePermit2();
@@ -65,7 +84,7 @@ export default function SwapPage() {
     1000
   );
 
-  // 计算价格，传入 debouncedAmount
+  // 计算价格，amount 仅在切链未刚刚发生时传入 debouncedAmount，否则传空字符串避免触发 fetch
   const {
     price,
     route,
@@ -78,7 +97,7 @@ export default function SwapPage() {
   } = useSwapPrice({
     tokenIn: fromToken,
     tokenOut: toToken,
-    amount: debouncedAmount,
+    amount: hasChainJustChangedRef.current ? "" : debouncedAmount,
     tradeType,
     recipient: address || "",
   });
@@ -86,7 +105,7 @@ export default function SwapPage() {
   // 监听窗口重新聚焦，重新获取报价
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && !hasChainJustChangedRef.current) {
         fetchPrice();
       }
     };
@@ -98,7 +117,7 @@ export default function SwapPage() {
 
   // 根据价格变化自动填充 toAmount 或 fromAmount
   useEffect(() => {
-    if (!priceLoading && price) {
+    if (!priceLoading && price && !hasChainJustChangedRef.current) {
       if (tradeType === TradeType.EXACT_INPUT) {
         setToAmount(price);
       } else if (tradeType === TradeType.EXACT_OUTPUT) {
