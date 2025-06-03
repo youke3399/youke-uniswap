@@ -40,33 +40,40 @@ export const swapTokens: TokensMap = {
       "USDC",
       "USD Coin"
     ),
-    PEPE: new Token(
-      1,
-      "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
-      18,
-      "PEPE",
-      "pepe"
-    ),
   },
   42161: {
     ETH: Ether.onChain(42161),
+    USDC: new Token(
+      42161,
+      "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      6,
+      "USDC",
+      "USD Coin"
+    ),
     USDT: new Token(
       42161,
       "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
       6,
       "USDT",
-      "Tether USD"
+      "USD₮0 USD"
     ),
-    USDC: new Token(
+    ARB: new Token(
       42161,
-      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-      6,
-      "USDC",
-      "USD Coin"
+      "0x912CE59144191C1204E64559FE8253a0e49E6548",
+      18,
+      "ARB",
+      "Arbitrum"
     ),
   },
   10: {
     ETH: Ether.onChain(10),
+    USDC: new Token(
+      10,
+      "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      6,
+      "USDC",
+      "USD Coin"
+    ),
     USDT: new Token(
       10,
       "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
@@ -74,26 +81,19 @@ export const swapTokens: TokensMap = {
       "USDT",
       "Tether USD"
     ),
-    USDC: new Token(
+     OP: new Token(
       10,
-      "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-      6,
-      "USDC",
-      "USD Coin"
+      "0x4200000000000000000000000000000000000042",
+      18,
+      "OP",
+      "Optimism"
     ),
   },
   8453: {
     ETH: Ether.onChain(8453),
-    USDT: new Token(
-      8453,
-      "0x2eA0325f6D8AcCd8b6D4b3E2e2a58E10bAAb9786",
-      6,
-      "USDT",
-      "Tether USD"
-    ),
     USDC: new Token(
       8453,
-      "0xd9AA94D2c0e4F38e3D69f4687c7D97c4008A8E68",
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       6,
       "USDC",
       "USD Coin"
@@ -101,19 +101,19 @@ export const swapTokens: TokensMap = {
   },
   324: {
     ETH: Ether.onChain(324),
-    USDT: new Token(
-      324,
-      "0x7821a81c0baa7f50a3063c0b51984d081658969d",
-      6,
-      "USDT",
-      "Tether USD"
-    ),
     USDC: new Token(
       324,
-      "0x3355df6D4c9C3035724Fd0e3914dE96A5a83aaf4",
+      "0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4",
       6,
       "USDC",
       "USD Coin"
+    ),
+    ZK: new Token(
+      324,
+      "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E",
+      18,
+      "ZK",
+      "zkSync"
     ),
   },
 };
