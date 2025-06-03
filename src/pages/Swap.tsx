@@ -74,6 +74,7 @@ export default function SwapPage() {
     loading: priceLoading,
     error: priceError,
     executeSwap,
+    fetchPrice,
   } = useSwapPrice({
     tokenIn: fromToken,
     tokenOut: toToken,
@@ -81,6 +82,19 @@ export default function SwapPage() {
     tradeType,
     recipient: address || "",
   });
+
+  // 监听窗口重新聚焦，重新获取报价
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchPrice();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchPrice]);
 
   // 根据价格变化自动填充 toAmount 或 fromAmount
   useEffect(() => {
@@ -94,7 +108,7 @@ export default function SwapPage() {
   }, [price, priceLoading, tradeType, setFromAmount, setToAmount]);
 
   // 获取出售代币余额
-  const { data: fromTokenBalance, isFetching: isFetchingFromBalance } =
+  const { data: fromTokenBalance, isFetching: isFetchingFromBalance, refetch: refetchFromBalance } =
     useBalance({
       address,
       token:
@@ -102,20 +116,18 @@ export default function SwapPage() {
           ? (fromToken.address as `0x${string}`)
           : undefined,
       query: {
-        refetchInterval: 30000,
         refetchOnWindowFocus: true,
       },
     });
 
   // 获取购买代币余额
-  const { data: toTokenBalance, isFetching: isFetchingToBalance } = useBalance({
+  const { data: toTokenBalance, isFetching: isFetchingToBalance, refetch: refetchToBalance } = useBalance({
     address,
     token:
       toToken && "address" in toToken
         ? (toToken.address as `0x${string}`)
         : undefined,
     query: {
-      refetchInterval: 30000,
       refetchOnWindowFocus: true,
     },
   });
@@ -126,12 +138,16 @@ export default function SwapPage() {
       await executeSwap();
       setFromAmount("");
       setToAmount("");
+      setTradeType(TradeType.EXACT_INPUT);
       setApproveStatus("idle");
       setSwapStatus("idle");
       setSwapError(null);
+      // 交易成功后主动刷新余额
+      refetchFromBalance();
+      refetchToBalance();
     } catch (err) {
       console.error("交易失败", err);
-      setSwapError("交易失败，请重试");
+      setSwapError("交易失败，请刷新浏览器后重试");
       setApproveStatus("idle");
       setSwapStatus("idle");
     }
@@ -157,7 +173,7 @@ export default function SwapPage() {
         setApproveStatus("done");
       } catch (err) {
         console.error("Approve Error", err);
-        setSwapError("授权失败，请重试");
+        setSwapError("授权失败，请刷新浏览器后重试");
         setApproveStatus("idle");
       }
       return;
@@ -411,4 +427,3 @@ export default function SwapPage() {
     </main>
   );
 }
-

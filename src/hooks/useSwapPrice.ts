@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useWalletClient, usePublicClient, useChainId } from "wagmi";
 import { Token, NativeCurrency, TradeType } from "@uniswap/sdk-core";
 import {
@@ -50,65 +50,65 @@ export function useSwapPrice({
     chainId
   ) as `0x${string}`;
 
-  useEffect(() => {
+  // 提取 fetchPrice 到 useEffect 外部以便复用
+  const fetchPrice = useCallback(async () => {
     if (!tokenIn || !tokenOut || !amount || Number(amount) <= 0 || !recipient)
       return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("https://uni.he5.cn/api/quote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tokenIn,
+          tokenOut,
+          amount,
+          tradeType,
+          recipient,
+          protocols:import.meta.env.VITE_PROTOCOLS ?? null,
+          minSplits:import.meta.env.VITE_MINSPLITS ?? null,
+          slippage:import.meta.env.VITE_SLIPPAGE ?? 50,
+        }),
+      });
 
-    const fetchPrice = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("https://uni.he5.cn/api/quote", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            tokenIn,
-            tokenOut,
-            amount,
-            tradeType,
-            recipient,
-            protocols:import.meta.env.VITE_PROTOCOLS ?? null,
-            minSplits:import.meta.env.VITE_MINSPLITS ?? null,
-            slippage:import.meta.env.VITE_SLIPPAGE ?? 50,
-          }),
-        });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "报价失败");
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || "报价失败");
-
-        setPrice(data.quote);
-        setRoute(
-          data.route.map((r: RouteInfo) => ({
-            protocol: r.protocol,
-            percent: r.percent,
-            pools: r.pools.map((p: PoolInfo) => ({
-              token0: p.token0.symbol,
-              token1: p.token1.symbol,
-              fee: p.fee,
-            })),
-          }))
-        );
-        setGasPrice(data.gasUsd);
-        setPriceImpact(data.priceImpact);
-        setCalldata(data.calldata);
-        setValue(data.value);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("未知错误");
-        }
-        setPrice("");
-        setRoute(null);
-      } finally {
-        setLoading(false);
+      setPrice(data.quote);
+      setRoute(
+        data.route.map((r: RouteInfo) => ({
+          protocol: r.protocol,
+          percent: r.percent,
+          pools: r.pools.map((p: PoolInfo) => ({
+            token0: p.token0.symbol,
+            token1: p.token1.symbol,
+            fee: p.fee,
+          })),
+        }))
+      );
+      setGasPrice(data.gasUsd);
+      setPriceImpact(data.priceImpact);
+      setCalldata(data.calldata);
+      setValue(data.value);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("未知错误");
       }
-    };
-
-    fetchPrice();
+      setPrice("");
+      setRoute(null);
+    } finally {
+      setLoading(false);
+    }
   }, [tokenIn, tokenOut, amount, tradeType, recipient]);
+
+  useEffect(() => {
+    fetchPrice();
+  }, [fetchPrice]);
 
   async function executeSwap() {
     if (!walletClient) throw new Error("No wallet client available");
@@ -146,5 +146,6 @@ export function useSwapPrice({
     calldata,
     value,
     executeSwap,
+    fetchPrice,
   };
 }
