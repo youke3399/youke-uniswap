@@ -58,7 +58,7 @@ export function useSwapPrice({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("http://uni.he5.cn:3000/api/quote", {
+        const res = await fetch("https://uni.he5.cn:3000/api/quote", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
