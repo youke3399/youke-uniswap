@@ -116,4 +116,21 @@ export const swapTokens: TokensMap = {
       "zkSync"
     ),
   },
+  130: {
+    ETH: Ether.onChain(130),
+    USDC: new Token(
+      130,
+      "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+      6,
+      "USDC",
+      "USD Coin"
+    ),
+    UNI: new Token(
+      130,
+      "0x8f187aA05619a017077f5308904739877ce9eA21",
+      18,
+      "UNI",
+      "Uniswap"
+    ),
+  },
 };
