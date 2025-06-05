@@ -1,7 +1,14 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider, http } from "wagmi";
-import { mainnet, arbitrum, optimism, base, zksync, unichain } from "wagmi/chains";
+import {
+  mainnet,
+  arbitrum,
+  optimism,
+  base,
+  zksync,
+  unichain,
+} from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AppRoutes from "./routes";
 
@@ -16,7 +23,7 @@ const config = getDefaultConfig({
   },
   appName: "youke",
   projectId: "22048dfbe94bf2f4a260f89c33252adf", // 到 https://cloud.walletconnect.com 注册获取
-  chains: [mainnet, arbitrum, optimism, base, zksync],
+  chains: [mainnet, arbitrum, optimism, base, zksync, unichain],
 });
 
 const queryClient = new QueryClient();
