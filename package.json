@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "build:script": "tsc src/scripts/index.ts --outDir dist/scripts && node dist/scripts/index.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.5",
@@ -37,6 +36,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "tsx": "^4.19.4",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5"

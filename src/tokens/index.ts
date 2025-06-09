@@ -40,6 +40,13 @@ export const swapTokens: TokensMap = {
       "USDC",
       "USD Coin"
     ),
+    UNI: new Token(
+      1,
+      "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+      18,
+      "UNI",
+      "Uniswap"
+    ),
   },
   42161: {
     ETH: Ether.onChain(42161),
