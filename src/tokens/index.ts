@@ -71,13 +71,6 @@ export const swapTokens: TokensMap = {
       "ARB",
       "Arbitrum"
     ),
-    mfer: new Token(
-      42161,
-      "0xE3086852A4B125803C815a158249ae468A3254Ca",
-      18,
-      "mfer",
-      "mfercoin"
-    ),
   },
   10: {
     ETH: Ether.onChain(10),
@@ -111,6 +104,13 @@ export const swapTokens: TokensMap = {
       6,
       "USDC",
       "USD Coin"
+    ),
+    mfer: new Token(
+      8453,
+      "0xE3086852A4B125803C815a158249ae468A3254Ca",
+      18,
+      "mfer",
+      "mfercoin"
     ),
   },
   324: {
